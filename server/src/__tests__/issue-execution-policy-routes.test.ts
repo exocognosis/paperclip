@@ -1437,4 +1437,36 @@ describe("issue execution policy routes", () => {
       }),
     );
   });
+
+  it("rejects an agent patch from a stale snapshot that would drop a stage added after it", async () => {
+    const issue = stagedPolicyIssue();
+    const savedPolicy = normalizeIssueExecutionPolicy({
+      stages: [
+        ...issue.executionPolicy.stages,
+        {
+          id: "77777777-7777-4777-8777-777777777777",
+          type: "approval",
+          participants: [{ type: "user", userId: "local-board" }],
+        },
+      ],
+    });
+    const { conflict } = await import("../errors.js");
+    const { isDeepStrictEqual } = await import("node:util");
+    mockIssueService.update.mockImplementation(async (_id: string, patch: Record<string, unknown>) => {
+      if (!isDeepStrictEqual(patch.expectedExecutionPolicy, savedPolicy)) {
+        throw conflict("The task execution settings changed", { code: "execution_policy_changed" });
+      }
+      return { ...issue, ...patch, updatedAt: new Date() };
+    });
+
+    const res = await request(await createApp(assigneeAgentActor))
+      .patch("/api/issues/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+      .send({ executionPolicy: { stages: issue.executionPolicy.stages } });
+
+    expect(res.status).toBe(409);
+    expect(mockIssueService.update).toHaveBeenCalledWith(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      expect.objectContaining({ expectedExecutionPolicy: issue.executionPolicy }),
+    );
+  });
 });

@@ -14528,7 +14528,10 @@ export function issueRoutes(
       const issueUpdateData = {
         ...updateFields,
         workspaceSelectionActor: req.actor,
-        expectedExecutionPolicy,
+        expectedExecutionPolicy:
+          expectedExecutionPolicy === undefined && req.body.executionPolicy !== undefined && req.actor.type !== "board"
+            ? existing.executionPolicy ?? null
+            : expectedExecutionPolicy,
         expectedStatusVersion,
         actorAgentId: actor.agentId ?? null,
         actorRunId: actor.agentId ? actor.runId : null,
